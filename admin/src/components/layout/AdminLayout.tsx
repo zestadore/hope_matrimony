@@ -7,7 +7,9 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ShieldCheck,
+  UserCog,
   Users,
+  UsersRound,
   X,
   type LucideIcon,
 } from 'lucide-react'
@@ -39,6 +41,8 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/admin/roles', label: 'Roles & Permissions', icon: ShieldCheck, permission: 'roles.view' },
+  { to: '/admin/users', label: 'Members', icon: UsersRound, permission: 'users.view' },
+  { to: '/admin/team', label: 'Team', icon: UserCog, permission: 'users.view' },
   { to: '/admin/castes', label: 'Castes', icon: Users, permission: 'castes.view' },
   {
     to: '/admin/qualifications',

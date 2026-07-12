@@ -8,6 +8,11 @@ import Industries from './pages/admin/Industries'
 import Login from './pages/Login'
 import Qualifications from './pages/admin/Qualifications'
 import RolesPermissions from './pages/admin/RolesPermissions'
+import Team from './pages/admin/Team'
+import TeamForm from './pages/admin/TeamForm'
+import UserForm from './pages/admin/UserForm'
+import UserView from './pages/admin/UserView'
+import Users from './pages/admin/Users'
 import ProtectedRoute from './routes/ProtectedRoute'
 import RequirePermission from './routes/RequirePermission'
 
@@ -63,6 +68,76 @@ function App() {
               <ProtectedRoute>
                 <RequirePermission permission="industries.view">
                   <Industries />
+                </RequirePermission>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <ProtectedRoute>
+                <RequirePermission permission="users.view">
+                  <Users />
+                </RequirePermission>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/team"
+            element={
+              <ProtectedRoute>
+                <RequirePermission permission="users.view">
+                  <Team />
+                </RequirePermission>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/team/new"
+            element={
+              <ProtectedRoute>
+                <RequirePermission permission="users.create">
+                  <TeamForm />
+                </RequirePermission>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/team/:id/edit"
+            element={
+              <ProtectedRoute>
+                <RequirePermission permission="users.update">
+                  <TeamForm />
+                </RequirePermission>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/users/new"
+            element={
+              <ProtectedRoute>
+                <RequirePermission permission="users.create">
+                  <UserForm />
+                </RequirePermission>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/users/:id/edit"
+            element={
+              <ProtectedRoute>
+                <RequirePermission permission="users.update">
+                  <UserForm />
+                </RequirePermission>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/users/:id"
+            element={
+              <ProtectedRoute>
+                <RequirePermission permission="users.view">
+                  <UserView />
                 </RequirePermission>
               </ProtectedRoute>
             }

@@ -6,6 +6,8 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Passport\Contracts\OAuthenticatable;
@@ -44,5 +46,42 @@ class User extends Authenticatable implements OAuthenticatable
         return static::where('mobile_number', $username)
             ->where('status', 'active')
             ->first();
+    }
+
+    public function profile(): HasOne
+    {
+        return $this->hasOne(MemberProfile::class);
+    }
+
+    public function familyDetail(): HasOne
+    {
+        return $this->hasOne(MemberFamilyDetail::class);
+    }
+
+    public function residency(): HasOne
+    {
+        return $this->hasOne(MemberResidency::class);
+    }
+
+    public function educations(): HasMany
+    {
+        return $this->hasMany(MemberEducation::class);
+    }
+
+    public function careers(): HasMany
+    {
+        return $this->hasMany(MemberCareer::class);
+    }
+
+    public function partnerPreference(): HasOne
+    {
+        return $this->hasOne(MemberPartnerPreference::class);
+    }
+
+    public function photos(): HasMany
+    {
+        return $this->hasMany(MemberPhoto::class)
+            ->orderByDesc('is_default')
+            ->orderBy('id');
     }
 }
