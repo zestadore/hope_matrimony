@@ -24,22 +24,38 @@ import { Colors, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { getErrorMessage } from '@/lib/api-error';
 import { useAuth } from '@/lib/auth-context';
 import { useTranslation } from '@/lib/i18n/locale-context';
-import { mobileNumberSchema } from '@/lib/validation';
+import { mobileNumberSchema, passwordSchema } from '@/lib/validation';
 
-type LoginForm = { mobile_number: string; password: string };
+type RegisterForm = {
+  name: string;
+  mobile_number: string;
+  email: string;
+  password: string;
+  password_confirmation: string;
+};
 
-export default function LoginScreen() {
-  const { login } = useAuth();
+export default function RegisterScreen() {
+  const { register } = useAuth();
   const t = useTranslation();
   const [formError, setFormError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const loginSchema = useMemo(
+  // Mirrors backend/app/Http/Requests/Auth/RegisterRequest.php
+  const registerSchema = useMemo(
     () =>
-      z.object({
-        mobile_number: mobileNumberSchema(t),
-        password: z.string().min(1, t('validation.passwordRequired')),
-      }),
+      z
+        .object({
+          name: z.string().trim().min(1, t('validation.nameRequired')).max(255),
+          mobile_number: mobileNumberSchema(t),
+          email: z.union([z.literal(''), z.string().trim().email(t('validation.email'))]),
+          password: passwordSchema(t),
+          password_confirmation: z.string(),
+        })
+        .refine((data) => data.password === data.password_confirmation, {
+          message: t('validation.passwordMismatch'),
+          path: ['password_confirmation'],
+        }),
     [t],
   );
 
@@ -47,15 +63,21 @@ export default function LoginScreen() {
     control,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<LoginForm>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { mobile_number: '', password: '' },
+  } = useForm<RegisterForm>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: { name: '', mobile_number: '', email: '', password: '', password_confirmation: '' },
   });
 
-  const onSubmit = async ({ mobile_number, password }: LoginForm) => {
+  const onSubmit = async ({ name, mobile_number, email, password, password_confirmation }: RegisterForm) => {
     setFormError(null);
     try {
-      await login(mobile_number, password);
+      await register({
+        name,
+        mobile_number,
+        email: email || undefined,
+        password,
+        password_confirmation,
+      });
     } catch (err) {
       setFormError(getErrorMessage(err, t('common.genericError')));
     }
@@ -81,40 +103,43 @@ export default function LoginScreen() {
 
             <LanguageSwitcher style={styles.languageSwitcher} />
 
-            <View style={styles.trustRow}>
-              <View style={styles.trustBadge}>
-                <SymbolView
-                  tintColor={Colors.secondary}
-                  name={{ ios: 'calendar', android: 'calendar_today', web: 'calendar_today' }}
-                  size={13}
-                />
-                <ThemedText type="small" style={styles.trustText}>
-                  {t('login.since')}
-                </ThemedText>
-              </View>
-              <View style={styles.trustBadge}>
-                <SymbolView
-                  tintColor={Colors.secondary}
-                  name={{ ios: 'lock.fill', android: 'lock', web: 'lock' }}
-                  size={13}
-                />
-                <ThemedText type="small" style={styles.trustText}>
-                  {t('login.secure')}
-                </ThemedText>
-              </View>
-            </View>
-
             <ThemedText type="subtitle" style={styles.title}>
-              {t('login.title')}
+              {t('register.title')}
             </ThemedText>
             <ThemedText type="default" style={styles.subtitle} themeColor="textSecondary">
-              {t('login.subtitle')}
+              {t('register.subtitle')}
             </ThemedText>
 
             <ThemedView style={styles.card}>
               <ThemedView style={[styles.field, styles.transparent]}>
                 <ThemedText type="smallBold" style={styles.label}>
-                  {t('login.mobileLabel')}
+                  {t('register.nameLabel')}
+                </ThemedText>
+                <Controller
+                  control={control}
+                  name="name"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      autoCapitalize="words"
+                      placeholder={t('register.namePlaceholder')}
+                      placeholderTextColor={Colors.textSecondary}
+                      style={styles.input}
+                    />
+                  )}
+                />
+                {errors.name && (
+                  <ThemedText type="small" style={styles.errorText}>
+                    {errors.name.message}
+                  </ThemedText>
+                )}
+              </ThemedView>
+
+              <ThemedView style={[styles.field, styles.transparent]}>
+                <ThemedText type="smallBold" style={styles.label}>
+                  {t('register.mobileLabel')}
                 </ThemedText>
                 <Controller
                   control={control}
@@ -126,7 +151,7 @@ export default function LoginScreen() {
                       onBlur={onBlur}
                       keyboardType="phone-pad"
                       maxLength={10}
-                      placeholder={t('login.mobilePlaceholder')}
+                      placeholder={t('register.mobilePlaceholder')}
                       placeholderTextColor={Colors.textSecondary}
                       style={styles.input}
                     />
@@ -141,7 +166,34 @@ export default function LoginScreen() {
 
               <ThemedView style={[styles.field, styles.transparent]}>
                 <ThemedText type="smallBold" style={styles.label}>
-                  {t('login.passwordLabel')}
+                  {t('register.emailLabel')}
+                </ThemedText>
+                <Controller
+                  control={control}
+                  name="email"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      placeholder={t('register.emailPlaceholder')}
+                      placeholderTextColor={Colors.textSecondary}
+                      style={styles.input}
+                    />
+                  )}
+                />
+                {errors.email && (
+                  <ThemedText type="small" style={styles.errorText}>
+                    {errors.email.message}
+                  </ThemedText>
+                )}
+              </ThemedView>
+
+              <ThemedView style={[styles.field, styles.transparent]}>
+                <ThemedText type="smallBold" style={styles.label}>
+                  {t('register.passwordLabel')}
                 </ThemedText>
                 <View style={styles.passwordRow}>
                   <Controller
@@ -153,7 +205,7 @@ export default function LoginScreen() {
                         onChangeText={onChange}
                         onBlur={onBlur}
                         secureTextEntry={!showPassword}
-                        placeholder={t('login.passwordPlaceholder')}
+                        placeholder={t('register.passwordPlaceholder')}
                         placeholderTextColor={Colors.textSecondary}
                         style={[styles.input, styles.passwordInput]}
                       />
@@ -176,20 +228,60 @@ export default function LoginScreen() {
                     />
                   </Pressable>
                 </View>
-                {errors.password && (
+                {errors.password ? (
                   <ThemedText type="small" style={styles.errorText}>
                     {errors.password.message}
+                  </ThemedText>
+                ) : (
+                  <ThemedText type="small" style={styles.hintText}>
+                    {t('register.passwordHint')}
                   </ThemedText>
                 )}
               </ThemedView>
 
-              <Link href="/(auth)/forgot-password" asChild>
-                <Pressable style={styles.forgotLink} hitSlop={8}>
-                  <ThemedText type="smallBold" style={styles.forgotText}>
-                    {t('login.forgot')}
+              <ThemedView style={[styles.field, styles.transparent]}>
+                <ThemedText type="smallBold" style={styles.label}>
+                  {t('register.confirmLabel')}
+                </ThemedText>
+                <View style={styles.passwordRow}>
+                  <Controller
+                    control={control}
+                    name="password_confirmation"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextInput
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        secureTextEntry={!showConfirmPassword}
+                        placeholder={t('register.confirmPlaceholder')}
+                        placeholderTextColor={Colors.textSecondary}
+                        style={[styles.input, styles.passwordInput]}
+                      />
+                    )}
+                  />
+                  <Pressable
+                    onPress={() => setShowConfirmPassword((prev) => !prev)}
+                    hitSlop={8}
+                    style={styles.eyeButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={showConfirmPassword ? t('common.hidePassword') : t('common.showPassword')}>
+                    <SymbolView
+                      tintColor={Colors.textSecondary}
+                      name={{
+                        ios: showConfirmPassword ? 'eye.slash' : 'eye',
+                        android: showConfirmPassword ? 'visibility_off' : 'visibility',
+                        web: showConfirmPassword ? 'visibility_off' : 'visibility',
+                      }}
+                      size={18}
+                    />
+                  </Pressable>
+                </View>
+                {errors.password_confirmation && (
+                  <ThemedText type="small" style={styles.errorText}>
+                    {errors.password_confirmation.message}
                   </ThemedText>
-                </Pressable>
-              </Link>
+                )}
+              </ThemedView>
 
               {formError && (
                 <ThemedText type="small" style={styles.formError}>
@@ -209,28 +301,24 @@ export default function LoginScreen() {
                   <ActivityIndicator color={Colors.primaryText} />
                 ) : (
                   <ThemedText type="default" style={styles.buttonText}>
-                    {t('login.submit')}
+                    {t('register.submit')}
                   </ThemedText>
                 )}
               </Pressable>
             </ThemedView>
 
-            <View style={styles.registerRow}>
+            <View style={styles.loginRow}>
               <ThemedText type="default" themeColor="textSecondary">
-                {t('login.newHere')}
+                {t('register.haveAccount')}
               </ThemedText>
-              <Link href="/(auth)/register" asChild>
-                <Pressable style={({ pressed }) => [styles.registerButton, pressed && styles.buttonPressed]}>
-                  <ThemedText type="smallBold" style={styles.registerButtonText}>
-                    {t('login.register')}
+              <Link href="/(auth)/login" asChild>
+                <Pressable hitSlop={8}>
+                  <ThemedText type="smallBold" style={styles.loginText}>
+                    {t('register.signIn')}
                   </ThemedText>
                 </Pressable>
               </Link>
             </View>
-
-            <ThemedText type="small" style={styles.footer} themeColor="textSecondary">
-              {t('login.footer')}
-            </ThemedText>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -271,29 +359,6 @@ const styles = StyleSheet.create({
   },
   languageSwitcher: {
     marginBottom: Spacing.three,
-  },
-  trustRow: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-    marginBottom: Spacing.four,
-  },
-  trustBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-    borderRadius: Radius.small,
-    backgroundColor: 'rgba(0,84,139,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(0,84,139,0.16)',
-  },
-  trustText: {
-    color: Colors.secondary,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '600',
-    letterSpacing: 0.2,
   },
   title: {
     textAlign: 'center',
@@ -350,14 +415,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: Spacing.one,
   },
-  forgotLink: {
-    alignSelf: 'flex-end',
-  },
-  forgotText: {
-    color: Colors.secondary,
-  },
   errorText: {
     color: Colors.danger,
+    paddingHorizontal: Spacing.two,
+  },
+  hintText: {
+    color: Colors.textSecondary,
     paddingHorizontal: Spacing.two,
   },
   formError: {
@@ -388,7 +451,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     color: Colors.primaryText,
   },
-  registerRow: {
+  loginRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
@@ -396,20 +459,7 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     marginTop: Spacing.five,
   },
-  registerButton: {
-    borderWidth: 1.5,
-    borderColor: Colors.secondary,
-    borderRadius: Radius.medium,
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-  },
-  registerButtonText: {
+  loginText: {
     color: Colors.secondary,
-    fontWeight: '700',
-  },
-  footer: {
-    textAlign: 'center',
-    marginTop: Spacing.five,
-    paddingHorizontal: Spacing.four,
   },
 });

@@ -317,7 +317,7 @@ export default function UserView() {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
               <div className="-mt-12 flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-4 border-background bg-primary/15 text-2xl font-semibold text-primary shadow-sm">
                 {defaultPhoto ? (
-                  <img src={defaultPhoto.path} alt={detail.name} className="size-full object-cover" />
+                  <img src={defaultPhoto.url} alt={detail.name} className="size-full object-cover" />
                 ) : (
                   initials(detail.name)
                 )}
@@ -377,13 +377,13 @@ export default function UserView() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {defaultPhoto && (
                 <a
-                  href={defaultPhoto.path}
+                  href={defaultPhoto.url}
                   target="_blank"
                   rel="noreferrer"
                   className="group relative aspect-square overflow-hidden rounded-xl border bg-muted"
                 >
                   <img
-                    src={defaultPhoto.path}
+                    src={defaultPhoto.url}
                     alt={detail.name}
                     className="size-full object-cover transition-transform group-hover:scale-105"
                   />
@@ -395,13 +395,13 @@ export default function UserView() {
               {(showAllPhotos ? otherPhotos : []).map((photo) => (
                 <a
                   key={photo.id}
-                  href={photo.path}
+                  href={photo.url}
                   target="_blank"
                   rel="noreferrer"
                   className="group relative aspect-square overflow-hidden rounded-xl border bg-muted"
                 >
                   <img
-                    src={photo.path}
+                    src={photo.url}
                     alt={detail.name}
                     className="size-full object-cover transition-transform group-hover:scale-105"
                   />

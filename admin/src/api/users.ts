@@ -102,7 +102,10 @@ export interface MemberPartnerPreference {
 
 export interface MemberPhoto {
   id: number
+  /** Location on the backend's public disk, e.g. member-photos/x.jpg. */
   path: string
+  /** Absolute URL derived from the backend's APP_URL — use this for <img src>. */
+  url: string
   original_name: string | null
   is_default: boolean
 }

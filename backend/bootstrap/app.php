@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -23,6 +24,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo(fn () => null);
 
         $middleware->append(SecurityHeaders::class);
+
+        // Must run before validation so FormRequest messages resolve in the
+        // caller's language.
+        $middleware->prependToGroup('api', SetLocale::class);
 
         $middleware->alias([
             'role' => RoleMiddleware::class,

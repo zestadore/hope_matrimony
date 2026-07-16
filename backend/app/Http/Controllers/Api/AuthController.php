@@ -4,14 +4,21 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\ChangePasswordRequest;
+use App\Http\Requests\Auth\ForgotPasswordRequest;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Requests\Auth\ResetPasswordRequest;
+use App\Http\Requests\Auth\UpdateLocaleRequest;
 use App\Models\User;
 use App\Services\LoginSecurityService;
+use App\Support\Roles;
 use GuzzleHttp\Psr7\HttpFactory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Laravel\Passport\Exceptions\OAuthServerException;
 use Laravel\Passport\Http\Controllers\AccessTokenController;
 
@@ -38,7 +45,7 @@ class AuthController extends Controller
             $this->security->recordAttempt($user, $mobileNumber, $request, false, 'locked');
 
             return response()->json([
-                'message' => 'Too many failed attempts. Please try again later.',
+                'message' => __('api.account_locked'),
             ], 423);
         }
 
@@ -55,13 +62,91 @@ class AuthController extends Controller
             }
             $this->security->recordAttempt($user, $mobileNumber, $request, false, 'invalid_credentials');
 
-            return response()->json(['message' => 'Invalid credentials.'], 401);
+            return response()->json(['message' => __('api.invalid_credentials')], 401);
         }
 
         $this->security->registerSuccess($user, $request);
         $this->security->recordAttempt($user, $mobileNumber, $request, true);
 
         return $this->respondWithTokens($tokenResponse['body']);
+    }
+
+    /**
+     * Self-service signup. Creates a bare member account — the matrimonial
+     * profile is completed after first login, not collected here — and
+     * signs the new user straight in.
+     */
+    public function register(RegisterRequest $request): JsonResponse
+    {
+        $user = DB::transaction(function () use ($request) {
+            $user = new User;
+            $user->forceFill([
+                'name' => $request->string('name')->toString(),
+                'mobile_number' => $request->string('mobile_number')->toString(),
+                'email' => $request->input('email'),
+                'password' => Hash::make($request->string('password')->toString()),
+                'status' => 'active',
+            ])->save();
+
+            $user->assignRole(Roles::MEMBER);
+
+            return $user;
+        });
+
+        $tokenResponse = $this->requestToken([
+            'grant_type' => 'password',
+            'username' => $user->mobile_number,
+            'password' => $request->string('password')->toString(),
+            'scope' => '',
+        ]);
+
+        if ($tokenResponse['status'] !== 200) {
+            // Extremely unlikely since we just set this password, but don't
+            // leave the new account holder stuck with no way in if it happens.
+            return response()->json(['message' => __('api.account_created_please_login')], 201);
+        }
+
+        return $this->respondWithTokens($tokenResponse['body']);
+    }
+
+    /**
+     * Request an email reset link. Always responds the same way regardless
+     * of whether the address is registered, so the endpoint can't be used
+     * to enumerate accounts.
+     */
+    public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
+    {
+        Password::sendResetLink($request->only('email'));
+
+        return response()->json([
+            'message' => __('api.reset_link_sent'),
+        ]);
+    }
+
+    /**
+     * Complete a password reset from the link emailed by forgotPassword().
+     * Revokes every existing token for the account, since the old password
+     * may have been compromised.
+     */
+    public function resetPassword(ResetPasswordRequest $request): JsonResponse
+    {
+        $status = Password::reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function (User $user, string $password) {
+                $user->forceFill(['password' => $password])->save();
+
+                foreach ($user->tokens as $token) {
+                    $token->refreshToken?->revoke();
+                    $token->revoke();
+                }
+            }
+        );
+
+        if ($status !== Password::PASSWORD_RESET) {
+            return response()->json(['message' => __($status)], 422);
+        }
+
+        return response()->json(['message' => __('api.password_updated_please_login')]);
     }
 
     /**
@@ -73,7 +158,7 @@ class AuthController extends Controller
         $refreshToken = $request->cookie(self::REFRESH_COOKIE);
 
         if (! $refreshToken) {
-            return response()->json(['message' => 'Session expired. Please log in again.'], 401);
+            return response()->json(['message' => __('api.session_expired')], 401);
         }
 
         $tokenResponse = $this->requestToken([
@@ -83,7 +168,7 @@ class AuthController extends Controller
         ]);
 
         if ($tokenResponse['status'] !== 200) {
-            return response()->json(['message' => 'Session expired. Please log in again.'], 401)
+            return response()->json(['message' => __('api.session_expired')], 401)
                 ->withCookie(Cookie::forget(self::REFRESH_COOKIE, '/api/auth'));
         }
 
@@ -100,7 +185,7 @@ class AuthController extends Controller
         $token->refreshToken?->revoke();
         $token->revoke();
 
-        return response()->json(['message' => 'Logged out.'])
+        return response()->json(['message' => __('api.logged_out')])
             ->withCookie(Cookie::forget(self::REFRESH_COOKIE, '/api/auth'));
     }
 
@@ -114,7 +199,7 @@ class AuthController extends Controller
             $token->revoke();
         }
 
-        return response()->json(['message' => 'Logged out of all devices.'])
+        return response()->json(['message' => __('api.logged_out_all')])
             ->withCookie(Cookie::forget(self::REFRESH_COOKIE, '/api/auth'));
     }
 
@@ -127,13 +212,27 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * Persist the user's preferred UI language so it follows them to a new
+     * device. The app is the source of truth for the current session — it
+     * pushes here after the user picks a language, and only adopts this value
+     * on a device that has no choice of its own yet.
+     */
+    public function updateLocale(UpdateLocaleRequest $request): JsonResponse
+    {
+        $user = $request->user();
+        $user->forceFill(['locale' => $request->string('locale')->toString()])->save();
+
+        return response()->json(['user' => $this->presentUser($user)]);
+    }
+
     public function changePassword(ChangePasswordRequest $request): JsonResponse
     {
         $user = $request->user();
 
         if (! Hash::check($request->string('current_password')->toString(), $user->password)) {
             return response()->json([
-                'message' => 'The current password is incorrect.',
+                'message' => __('api.current_password_incorrect'),
             ], 422);
         }
 
@@ -150,7 +249,7 @@ class AuthController extends Controller
             }
         }
 
-        return response()->json(['message' => 'Password updated.']);
+        return response()->json(['message' => __('api.password_updated')]);
     }
 
     /**
@@ -215,6 +314,7 @@ class AuthController extends Controller
             'mobile_number' => $user->mobile_number,
             'email' => $user->email,
             'status' => $user->status,
+            'locale' => $user->locale,
             'roles' => $user->getRoleNames(),
             'permissions' => $user->getAllPermissions()->pluck('name'),
         ];

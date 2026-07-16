@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Notifications\ResetPasswordNotification;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -15,7 +16,7 @@ use Laravel\Passport\HasApiTokens;
 use League\OAuth2\Server\Entities\ClientEntityInterface;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'mobile_number', 'email', 'password'])]
+#[Fillable(['name', 'mobile_number', 'email', 'password', 'locale'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements OAuthenticatable
 {
@@ -76,6 +77,11 @@ class User extends Authenticatable implements OAuthenticatable
     public function partnerPreference(): HasOne
     {
         return $this->hasOne(MemberPartnerPreference::class);
+    }
+
+    public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
+    {
+        $this->notify(new ResetPasswordNotification($token));
     }
 
     public function photos(): HasMany

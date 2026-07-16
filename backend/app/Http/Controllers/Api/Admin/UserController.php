@@ -151,7 +151,7 @@ class UserController extends Controller
         }
 
         foreach ($user->photos as $photo) {
-            $this->deletePublicFile($photo->path);
+            Storage::disk('public')->delete($photo->path);
         }
 
         $user->delete();
@@ -224,7 +224,7 @@ class UserController extends Controller
         $path = $file->store('member-photos', 'public');
 
         $user->photos()->create([
-            'path' => Storage::disk('public')->url($path),
+            'path' => $path,
             'original_name' => $file->getClientOriginalName(),
             // The first photo added becomes the default profile photo.
             'is_default' => $user->photos()->count() === 0,
@@ -239,7 +239,7 @@ class UserController extends Controller
             abort(404);
         }
 
-        $this->deletePublicFile($photo->path);
+        Storage::disk('public')->delete($photo->path);
         $wasDefault = $photo->is_default;
         $photo->delete();
 
@@ -270,15 +270,6 @@ class UserController extends Controller
         return response()->json([
             'photos' => $user->photos()->get(),
         ]);
-    }
-
-    private function deletePublicFile(string $url): void
-    {
-        $path = ltrim((string) parse_url($url, PHP_URL_PATH), '/');
-        // Stored urls look like /storage/member-photos/xyz.jpg; the public disk
-        // is rooted at storage/app/public, exposed under the /storage prefix.
-        $path = preg_replace('#^storage/#', '', $path);
-        Storage::disk('public')->delete($path);
     }
 
     public function updateRoles(SyncUserRolesRequest $request, User $user): JsonResponse
@@ -356,7 +347,7 @@ class UserController extends Controller
 
         $photos = $user->photos;
 
-        return ($photos->firstWhere('is_default', true) ?? $photos->first())?->path;
+        return ($photos->firstWhere('is_default', true) ?? $photos->first())?->url;
     }
 
     private function presentUserDetail(User $user): array
